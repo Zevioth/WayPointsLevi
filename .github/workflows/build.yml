@@ -1,0 +1,92 @@
+name: Build WayPointsLevi
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Levi .levipack
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK and NDK
+        run: |
+          sdkmanager --install \
+            "platform-tools" \
+            "platforms;android-28" \
+            "build-tools;35.0.0" \
+            "ndk;28.2.13676358"
+
+      - name: Verify toolchain
+        shell: bash
+        run: |
+          cmake --version
+          ninja --version
+          pwsh --version
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+
+      - name: Build arm64-v8a
+        shell: pwsh
+        run: |
+          ./scripts/package.ps1 `
+            -Abi arm64-v8a `
+            -AndroidPlatform android-28 `
+            -NdkHome "$env:ANDROID_NDK_HOME" `
+            -Generator Ninja
+
+      - name: Build armeabi-v7a
+        shell: pwsh
+        run: |
+          ./scripts/package.ps1 `
+            -Abi armeabi-v7a `
+            -AndroidPlatform android-28 `
+            -NdkHome "$env:ANDROID_NDK_HOME" `
+            -Generator Ninja
+
+      - name: List generated packages
+        shell: bash
+        run: |
+          echo "Generated .levipack files:"
+          find . -type f -name "*.levipack" -print
+
+      - name: Upload arm64-v8a package
+        uses: actions/upload-artifact@v4
+        with:
+          name: WayPointsLevi-arm64-v8a
+          path: build-arm64-v8a/*.levipack
+          if-no-files-found: error
+
+      - name: Upload armeabi-v7a package
+        uses: actions/upload-artifact@v4
+        with:
+          name: WayPointsLevi-armeabi-v7a
+          path: build-armeabi-v7a/*.levipack
+          if-no-files-found: error
+
+      - name: Upload all build packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: WayPointsLevi-packages
+          path: |
+            build-arm64-v8a/*.levipack
+            build-armeabi-v7a/*.levipack
+          if-no-files-found: error
